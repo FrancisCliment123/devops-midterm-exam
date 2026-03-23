@@ -1,0 +1,36 @@
+- name: Deploy Mock OpenAI API
+  hosts: mock-openai-api
+# FIX: 'become' must be true, as installing packages (apt) and writing to /opt require root (sudo) privileges
+  become: true
+
+  tasks:
+    - name: Install Docker
+# FIX: Do not use shell for package management; it breaks idempotency. Use the ansible.builtin.apt module instead
+      ansible.builtin.apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: /opt/mock-openai-api
+        state: directory
+
+    - name: Deploy docker-compose file
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: /opt/mock-openai-api/docker-compose.yml
+# FIX: The notify name must exactly match the handler's name
+      notify: Restart app
+
+    - name: Start services
+      community.docker.docker_compose_v2:
+        project_src: /opt/mock-openai-api
+        state: present
+
+  handlers:
+# FIX: Matched handler name and action to the correct application format (Restart app / Docker compose), not Nginx since Nginx is not deployed here
+    - name: Restart app
+      community.docker.docker_compose_v2:
+        project_src: /opt/mock-openai-api
+        state: restarted
